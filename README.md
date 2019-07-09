@@ -1,4 +1,3 @@
-
 Robust optimisation aims to find solutions that, given a particular measure of robustness, remain optimal in the face of perturbations within a defined disturbance neighbourhood. pyrobust is a python implementation of various robust optimisation methods developed by the University of Exeter (Prof. Jonathan E. Fieldsend's group). The core optimisation methods utilise the population's search history and resamples the best individuals for new solutions, as described in: _[On the Exploitation of Search History and Accumulative Sampling in Robust Optimisation](https://ore.exeter.ac.uk/repository/handle/10871/27155)_ by K. Alyahya, K. Doherty, O. E. Akman and J. E. Fieldsend, GECCO ’17 Companion, July 15-19, 2017.
 
 Please reference this paper if you undertake work utilising this code.
