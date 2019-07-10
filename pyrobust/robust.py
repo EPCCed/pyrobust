@@ -3,6 +3,8 @@
 PYTHON version based on source code from University of Exeter
 J. E. Fieldsend, K. Alyahya, K. Doherty
 
+see pop_project/src/GECCO_2017/EAS_GA_UpdateHistory
+
 Authors: N. Banglawala, EPCC, 2019
 License: MIT
 
@@ -12,10 +14,10 @@ import sys
 
 import numpy as np
 
-from pyrobust import population
-from pyrobust import statistical_utils as su
-from pyrobust import resampling_methods as rm
-from pyrobust import weighting_methods as wm
+import population
+import statistical_utils as su
+import resampling_methods as rm
+import weighting_methods as wm
 
 
 ###############################################################################
@@ -35,13 +37,14 @@ WEIGHTING=dict(uniform=wm.uniform_weights, wasserstein=wm.wasserstein_weights,
 
 weighting_default = 'wasserstein'
 
+
 SAMPLING=dict(uniform=np.random.uniform, sobol=su.generate_sobol_sample,
               latin=su.generate_latin_sample)
 
 sampling_default = 'latin'
 
-###############################################################################
 
+###############################################################################
 
 class Robust(object):
     """
@@ -57,21 +60,32 @@ class Robust(object):
 
 
     # OPTIONS
-    use_history : ['ind', 'nbr'], default: []
-        use history to improve robust fitness estimate for:
-            'ind' : individual using neighbour fitnesses
-            'nbr' : of neighbour, using individual's fitness
+    use_history : bool, default: False 
+        use search history to improve individual's robust fitness
+        estimate using search history of neighbours with set defaults
 
-            defaults: 'latin' sampling, 'wasserstein' weighting
-        Note: either or both options can be given (list order unimportant)
+    use_history_with : {}, default: None
+        advanced options for specifying function (func) to improve robust
+        fitness estimate, sampling and weighting methods. Specify options in
+        dictionary:
 
-    use_history_with :
-            {'ind' : {'ind_func' : func, 'sampling' : func, 'weighting': func},
-             'nbr' : {'nbr_func' : func, 'sampling' : func, 'weighting': func},
-            default: {}
-        advanced options for using history to improve estimate of robust 
-        fitness. Note: if key not set or value is None, defaults used.
+        {'func' : func, 'sampling' : func, 'weighting': func}
 
+        Note: if key not set or value is None, defaults used. 
+
+    update_history : bool, default: False
+        improve robust fitness estimate of all neighbours of individual
+        using individual's fitness with set defaults
+
+    update_history_with : {}, default: None
+        advanced options for specifying function (func) to improve robust
+        fitness estimate of neighbours of individual. Specify options in 
+        dictionary:  
+        
+        {'func' : func, 'sampling' : func, 'weighting': func}
+            
+        Note: if key not set or value is None, defaults used.
+ 
     resample : {'uniform', 'sobol', 'wasserstein'}, default: None
         resample individual with least fitness evaluations. This could be from
         the entire population or from elites only depending on options set.
@@ -90,6 +104,7 @@ class Robust(object):
     maximise : bool, default: False 
         maximise objective function
   
+
     Attributes
     ----------
 
@@ -98,8 +113,9 @@ class Robust(object):
 
     """
 
-    def __init__(self, max_pop, problem, use_history=None, 
-                 use_history_with=None, resample=None, resample_with=None,
+    def __init__(self, max_pop, problem, use_history=False, 
+                 use_history_with=None, update_history=False, 
+                 update_history_with=None, resample=None, resample_with=None, 
                  maximise=False):
 
         self.pop = population.Population(max_pop, problem, 
@@ -113,10 +129,12 @@ class Robust(object):
         self.dims = len(self.dlbound)
 
         # set options for improving robust fitness estimate
-        self.__set_use_history_options(use_history, use_history_with)
+        self.__set_history_options(use_history, use_history_with,
+                                   update_history, update_history_with)
 
         # index list of individuals to ignore
         self.__exclude = []
+
 
         # once options for using history are set, set wrappers
         self.pop.add_individual = self.add_individual # individual
@@ -124,8 +142,6 @@ class Robust(object):
 
         # set options for resampling
         self.__set_resampling_options(resample, resample_with)
-
-        return
 
 
     def get_tot_evals(self):
@@ -201,6 +217,7 @@ class Robust(object):
             raise
         
 
+
     def iterate(self):
         """Main iteration of robust optimisation."""
 
@@ -215,110 +232,93 @@ class Robust(object):
         self.resampling_call(self.rs_select_func, self.resampling_func, 
                         self.rs_weighting_func, self.dlbound, self.dubound, 
                         self.problem.elite_pop_size, self.rs_sample_size)         
- 
+
         return
 
 
-    def __set_use_history_options(self, use_history, use_history_with):
+    def __set_history_options(self, use_history, use_history_with,
+                              update_history, update_history_with):
         """Set options for improving robust fitness estimate using search
         history."""
 
-
         # set defaults
-        use_history_ind_func = lambda *args, **kwargs: None
-        use_history_nbr_func = lambda *args, **kwargs: None
+        use_hist_func = lambda *args, **kwargs: None
+        use_hist_samp = lambda *args, **kwargs: None
+        use_hist_weight = lambda *args, **kwargs: None
 
-        ind_sampling  = lambda *args, **kwargs: None
-        ind_weighting = lambda *args, **kwargs: None
-
-        nbr_sampling  = lambda *args, **kwargs: None
-        nbr_weighting = lambda *args, **kwargs: None
+        update_hist_func = lambda *args, **kwargs: None
+        update_hist_samp  = lambda *args, **kwargs: None
+        update_hist_weight = lambda *args, **kwargs: None
 
         try:
             if use_history_with:
-            # advanced options override predefined options
+                # use history to improve robust fitness of individuals
+                # advanced options override predefined options
 
-                if 'ind' in use_history_with:
-                    # use history to improve fitness for individuals
+                # set use_history function
+                if 'func' in use_history_with:
+                    use_hist_func = use_history_with['func']
+                else:
+                    # default
+                    use_hist_func = self.use_history
 
-                    individual_opts = use_history_with['ind']
+                # set sampling/weighting methods
+                if 'sampling' in use_history_with:
+                    use_hist_samp = use_history_with['sampling']
+                else:
+                    # default
+                    use_hist_samp  = SAMPLING[sampling_default]
 
-                    # set improve fitness function for individual
-                    if 'ind_func' in individual_opts:
-                        use_history_ind_func = \
-                                             individual_opts['ind_func']
-                    else:
-                        # defaults
-                        use_history_ind_func = \
-                                             self.use_history_for_individual
-
-                    # set sampling/weighting methods
-                    if 'sampling' in individual_opts:
-                        ind_sampling = individual_opts['sampling']
-                    else:
-                        # defaults
-                        ind_sampling  = SAMPLING[sampling_default]
-
-                    if 'weighting' in individual_opts:
-                        ind_weighting = individual_opts['weighting']
-                    else:
-                        # defaults
-                        ind_weighting  = WEIGHTING[weighting_default]
-
-                if 'nbr' in use_history_with:
-                    # use history to improve fitness for neighbours
-
-                    neighbours_opts = use_history_with['nbr']
-
-                    # set improve fitness function for individual
-                    if 'nbr_func' in neighbours_opts:
-                        use_history_nbr_func = \
-                                             neighbours_opts['nbr_func']
-                    else:
-                        # defaults
-                        use_history_nbr_func = \
-                                             self.use_history_for_neighbour
-
-                    # set sampling/weighting methods
-                    if 'sampling' in neighours_opts:
-                        nbr_sampling = neighbours_opts['sampling']
-                    else:
-                        # defaults
-                        nbr_sampling  = SAMPLING[sampling_default]
-
-                    if 'weighting' in neighbours_opts:
-                        nbr_weighting = neighbours_opts['weighting']
-                    else:
-                        # defaults
-                        nbr_weighting = WEIGHTING[weighting_default]
-
+                if 'weighting' in use_history_with:
+                    use_hist_weight = use_history_with['weighting']
+                else:
+                    # default
+                    use_hist_weight  = WEIGHTING[weighting_default]
             elif use_history:
-                # else set predefined options (use as set, not list)
-                use_history_opts = set(use_history)
+                # else set predefined options
+                use_hist_func = self.use_history                                                        
+                use_hist_samp = SAMPLING[sampling_default]                   
+                use_hist_weight = WEIGHTING[weighting_default]   
 
-                if 'ind' in use_history_opts:
-                    use_history_ind_func = \
-                                         self.use_history_for_individual
-                                         #self.improve_individual_robust_fitness
 
-                    ind_sampling = SAMPLING[sampling_default]
-                    ind_weighting = WEIGHTING[weighting_default]
+            if update_history_with:
+                # use history to improve fitness for neighbours
+                # advanced options override predefined options
 
-                if 'nbr' in use_history_opts:
-                    use_history_nbr_func = \
-                                         self.use_history_for_neighbour
-                                         #self.improve_neighbour_robust_fitness
+                # set update_history function
+                if 'func' in update_history_with:
+                    update_hist_func = update_history_with['func']
+                else:
+                    # default
+                    update_hist_func = self.update_history
 
-                    nbr_sampling = SAMPLING[sampling_default]
-                    nbr_weighting = WEIGHTING[weighting_default]
+                # set sampling/weighting methods
+                if 'sampling' in update_history_with:
+                    update_hist_samp = update_history_with['sampling']
+                else:
+                    # default
+                    update_hist_samp  = SAMPLING[sampling_default]
+
+                if 'weighting' in update_history_with:
+                    update_hist_weight = update_history_with['weighting']
+                else:
+                    # default
+                    update_hist_weight = WEIGHTING[weighting_default]
+
+            elif update_history:
+                # else set predefined options
+                update_hist_func = self.update_history                 
+                update_hist_samp = SAMPLING[sampling_default]                       
+                update_hist_weight = WEIGHTING[weighting_default] 
+
 
             # set options as attributes
-            setattr(self, 'use_history_ind_func', use_history_ind_func)
-            setattr(self, 'use_history_nbr_func', use_history_nbr_func)
-            setattr(self, 'ind_sampling', ind_sampling)
-            setattr(self, 'ind_weighting', ind_weighting)
-            setattr(self, 'nbr_sampling', nbr_sampling)
-            setattr(self, 'nbr_weighting', nbr_weighting)
+            setattr(self, 'use_hist_func', use_hist_func)
+            setattr(self, 'use_hist_samp', use_hist_samp)
+            setattr(self, 'use_hist_weight', use_hist_weight)
+            setattr(self, 'update_hist_func', update_hist_func)
+            setattr(self, 'update_hist_samp', update_hist_samp)
+            setattr(self, 'update_hist_weight', update_hist_weight)
 
         except KeyError as err:
             print("Method used in improving fitness unknown, got ", err)
@@ -370,9 +370,6 @@ class Robust(object):
                 resampling_func = RESAMPLING[resample]
                 rs_weighting_func = WEIGHTING[resample]
 
-                #print("\nDEBUG: rs_func {}, rs_weight {}\n".format( 
-                #     resampling_func, rs_weighting_func))
-         
             else:    
                 # set resampling call to None                                     
                 resampling_call = lambda *args, **params: None
@@ -403,15 +400,15 @@ class Robust(object):
             self.pop._add_individual(x, x_fit=x_fit, x_est_fit=x_rob_fit,
                                      *args, **params)
 
-        # improve fitness of individual using neighbours' search history
-        self.use_history_ind_func([x_idx], self.ind_sampling, 
-                                  self.ind_weighting, *args, **params)
+        # use search history to individual's improve robust fitness
+        self.use_hist_func([x_idx], self.use_hist_samp, 
+                                  self.use_hist_weight, *args, **params)
 
         return x_idx, x_fit, x_rob_fit
 
 
     def calc_fitness(self, x, *args, **params):
-        """Wrapper for neighbour's robust fitness."""
+        """Wrapper for updating robust fitness estimate of neighbours."""
 
         # calculate fitness
         x_fit = self.problem.fitness(x, *args, **params)
@@ -420,8 +417,8 @@ class Robust(object):
         self.update_tot_evals()
 
         # improve fitness of neighbours using x_fit value
-        self.use_history_nbr_func(x, x_fit, self.nbr_sampling,
-                                  self.nbr_weighting, *args, **params)
+        self.update_hist_func(x, x_fit, self.update_hist_samp, 
+                            self.update_hist_weight, *args, **params)
 
         return x_fit
 
@@ -471,7 +468,6 @@ class Robust(object):
         # (i.e. its neighbours)
         x_nbrs = self.pop.get_neighbour(x_idx, None)
 
-
         # get new x and weights by resampling disturbance neighbourhood of x
         x_new, weights, cpts = self.resampling_func(x, x_nbrs, dlbound, 
                                                     dubound, sample_size,
@@ -503,9 +499,9 @@ class Robust(object):
         return
 
 
-    def __use_history(self, x_idx, pts, p_fit, sampling,
-                                weighting):
-        """Use search history to update robust fitness estimate.
+    def __use_history(self, x_idx, pts, p_fit, sampling, weighting):
+        """Use search history to update robust fitness estimate of individual
+        or neighbours of given individual.
 
         Parameters
         ----------
@@ -558,8 +554,6 @@ class Robust(object):
 
                         self.pop.add_neighbour(i, p, p_fit[j])
 
-                # total number of neighbours that x has
-
                 # update objective average
                 # if individual has had at least one neighbour added
                 if to_update:
@@ -588,8 +582,7 @@ class Robust(object):
             raise
 
 
-    def use_history_for_individual(self, x_idx, sampling, weighting,
-                                          **params):
+    def use_history(self, x_idx, sampling, weighting, **params):
         """Improves robust fitness estimate of individual using all neighbours
         in population.
 
@@ -622,13 +615,13 @@ class Robust(object):
         # fitness value of all potential neighbours
         p_fit = self.pop.get_fitness_value(no_i_idx, 0)
 
+        #self.__improve_robust_fitness
         self.__use_history(x_idx, pts, p_fit, sampling, weighting)
 
         return
 
 
-    def use_history_for_neighbour(self, x, x_fit, sampling, weighting,
-                                          **params):
+    def update_history(self, x, x_fit, sampling, weighting, **params):
         """Improves robust fitness estimate of all neighbours using search
         history of an individual.
 
