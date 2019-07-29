@@ -127,8 +127,6 @@ def sobol_resampling(x0, xpts, lbound, ubound, num_cpts,
 
         weights = weighting_methods(xpts)
 
-        print("\nDEBUG: x_new {}, weights {}, cpts {}\n".format(x_new, weights, cpts))
-
         return x_new, weights, cpts
 
     except:

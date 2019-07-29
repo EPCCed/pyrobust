@@ -90,7 +90,8 @@ def wasserstein_weights(x_epts, cpts=None, lbound=0, ubound=0, num_cpts=0,
             if num_cpts and (ubound - lbound):
                 dims = x_epts.shape[1]
                 cpts_shape = (num_cpts, dims)
-                cpts = su.generate_latin_sample(lbound, ubound, cpts_shape)
+                # low /high bounds not used in su.generate_latin_sample
+                cpts = su.generate_latin_sample(0, 1, cpts_shape)
                 cpts = cpts * (ubound - lbound) + lbound
             else:
                 print("Could not generate candidate points")
@@ -118,7 +119,6 @@ def wasserstein_weights(x_epts, cpts=None, lbound=0, ubound=0, num_cpts=0,
         raise
 
 
-# TODO: requires distances rather than cpts for this.
 def voronoi_monte_carlo_weights(x_epts, cpts=None, lbound=0, ubound=0,
                                 num_cpts=0, **params):
     """Calculates Voronoi weights using Monte Carlo sampling."""

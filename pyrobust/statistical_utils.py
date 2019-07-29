@@ -112,8 +112,6 @@ def generate_latin_sample(low, high, shape, criterion='maximin',
        
         sample = pydoe.lhs(ndims, num_samples, criterion=criterion)
 
-        #print("\nDEBUG: LHS sample {}".format(sample))
-
         return sample                 
                                                                
     except:                                                                     

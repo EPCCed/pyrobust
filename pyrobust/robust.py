@@ -14,10 +14,10 @@ import sys
 
 import numpy as np
 
-import population
-import statistical_utils as su
-import resampling_methods as rm
-import weighting_methods as wm
+from pyrobust import population
+from pyrobust import statistical_utils as su
+from pyrobust import resampling_methods as rm
+from pyrobust import weighting_methods as wm
 
 
 ###############################################################################
