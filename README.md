@@ -2,9 +2,7 @@ Robust optimisation aims to find solutions that, given a particular measure of r
 
 Please reference this paper if you undertake work utilising this code.
 
-The examples on this page can be obtained from: https://github.com/EPCCed/pyrobust-examples
-
-Code to run benchmark problems using `pynmmso` can be found at: https://github.com/EPCCed/pyrobust-benchmarking
+Documentation for pyrobust can be found at: https://github.com/EPCCed/pyrobust/wiki
 
 ## Install pyrobust
 
